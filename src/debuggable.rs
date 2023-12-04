@@ -30,15 +30,13 @@ impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
 }
 
 impl<Value: JSONDeSerializable> Debuggable<Value> {
-    pub fn new(name: String, initial_value: Value) -> Self {
+    pub fn new<Name:ToString>(name: Name, initial_value: Value) -> Self {
         Self::new_server(crate::default_server::default_debuggable_server(), name, initial_value)
     }
 
-    pub fn new_server(server: Arc<RwLock<DebuggableServer>>, name: String, initial_value: Value) -> Self {
+    pub fn new_server<Name:ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value) -> Self {
         let last_value = initial_value.to_json();
-
-
-        let id = server.write().unwrap().init_debuggable(name);
+        let id = server.write().unwrap().init_debuggable(name.to_string());
         server.write().unwrap().notify_new_value(id, last_value.clone(), Who::All);
         Self { value: UnsafeCell::new(initial_value), id, server }
     }
