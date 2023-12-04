@@ -42,6 +42,7 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
     }
 
     fn process_changes(&self) {
+        self.server.write().unwrap().accept_incoming_not_blocking();
         self.server.write().unwrap().read_all_clients();
         let current_json = unsafe { (*self.value.get()).to_json() };
         let has_changed = !self.server.read().unwrap().last_value_of_equals(self.id, &current_json);
