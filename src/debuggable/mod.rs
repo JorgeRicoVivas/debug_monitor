@@ -35,16 +35,24 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
     }
 
     pub fn new_server<Name: ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value) -> Self {
+        println!("Debuggable creation!");
         let last_value = initial_value.to_json();
-        let id = server.write().unwrap().init_debuggable(name.to_string());
+        let name = name.to_string();
+        println!("Creating {name:?}");
+        let id = server.write().unwrap().init_debuggable(name);
+        println!("Initialized");
         server.write().unwrap().notify_new_value(id, last_value.clone(), Who::All);
+        println!("Valued notified");
         Self { value: UnsafeCell::new(initial_value), id, server }
     }
 
     fn process_changes(&self) {
+        println!("[Processing] Accepting incoming");
         self.server.write().unwrap().accept_incoming_not_blocking();
+        println!("[Processing] reading all clients");
         self.server.write().unwrap().read_all_clients();
         let current_json = unsafe { (*self.value.get()).to_json() };
+        println!("[Processing] Checking value change");
         let has_changed = !self.server.read().unwrap().last_value_of_equals(self.id, &current_json);
         let incoming_jsons = self.server.write().unwrap().take_incoming_jsons_of(self.id);
         let mut wrong_clients: HashSet<usize> = HashSet::new();
@@ -88,15 +96,23 @@ impl<Value: JSONDeSerializable> Deref for Debuggable<Value> {
 
     fn deref(&self) -> &Self::Target {
         unsafe {
+            println!("Derefing normal of debuggable and processing changes");
             self.process_changes();
-            &*self.value.get()
+            println!("Changes processed");
+            let res = &*self.value.get();
+            println!("Returning value");
+            res
         }
     }
 }
 
 impl<Value: JSONDeSerializable> DerefMut for Debuggable<Value> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        println!("Derefing mut of debuggable and processing changes");
         self.process_changes();
-        self.value.get_mut()
+        println!("Changes processed");
+        let res = self.value.get_mut();
+        println!("Returning value");
+        res
     }
 }
