@@ -12,6 +12,8 @@ use simple_tcp::server::SimpleServer;
 use crate::serializable::JSONDeSerializable;
 use crate::serializable::messages::{ClientMessage, ServerMessage};
 
+pub mod debuggable_server_builder;
+
 #[derive(Debug)]
 pub struct DebuggableServer(SimpleServer<DebuggableServerData, ()>);
 
@@ -32,24 +34,17 @@ impl DerefMut for DebuggableServer {
 #[derive(Debug)]
 pub struct DebuggableServerData {
     debuggables: FixedIndexVec<DebuggableOnServer>,
+    only_reads_from_dir: bool,
     read_from_dir: Option<String>,
 }
 
-// todo Configurator should yield a Configurable server, not having a server created using it
-pub struct DebuggableServerConfigurator<ObtainTcpListener: FnOnce() -> TcpListener> {
-    obtain_tcp_listener: ObtainTcpListener,
-    read_dir: Option<String>,
-}
-
 impl DebuggableServer {
-    pub fn new_configured<ObtainTcpListener>(server_configurator: DebuggableServerConfigurator<ObtainTcpListener>) -> DebuggableServer
-        where ObtainTcpListener: FnOnce() -> TcpListener
-    {
-        let tcp_listener = (server_configurator.obtain_tcp_listener)();
+    pub fn new(tcp_listener: TcpListener) -> DebuggableServer {
         let mut server = Self {
             0: SimpleServer::new(tcp_listener, DebuggableServerData {
                 debuggables: FixedIndexVec::new(),
-                read_from_dir: server_configurator.read_dir,
+                only_reads_from_dir: false,
+                read_from_dir: None,
             },
                                  |_, _, _| None)
         };
@@ -78,13 +73,6 @@ impl DebuggableServer {
         server
     }
 
-    pub fn new(tcp_listener: TcpListener) -> DebuggableServer {
-        Self::new_configured(DebuggableServerConfigurator {
-            obtain_tcp_listener: move || tcp_listener,
-            read_dir: None,
-        })
-    }
-
     fn process_message_of(server: &mut SimpleServer<DebuggableServerData, ()>, client_id: &usize, message: &str) {
         let message = ClientMessage::from_json(message);
         if message.is_none() {
@@ -98,8 +86,16 @@ impl DebuggableServer {
         self.read_from_dir = read_dir;
     }
 
+    pub fn set_only_reads_from_dir(&mut self, only_reads_from_dir: bool) {
+        self.only_reads_from_dir = only_reads_from_dir;
+    }
+
     pub fn read_all_clients(&mut self) -> usize {
-        let read_bytes = self.read_clients(true);
+        if self.only_reads_from_dir {
+            return self.read_clients_from_read_dir();
+        }
+        let read_bytes: usize = 0;
+        read_bytes.checked_add(self.read_clients(true)).unwrap_or(usize::MAX);
         read_bytes.checked_add(self.read_clients_from_read_dir()).unwrap_or(usize::MAX);
         read_bytes
     }
@@ -155,7 +151,7 @@ impl DebuggableServer {
             }
         });
         transactions.into_iter().for_each(|(client_id, _, contents)| {
-            read_bytes=read_bytes.checked_add(contents.len()).unwrap_or(usize::MAX);
+            read_bytes = read_bytes.checked_add(contents.len()).unwrap_or(usize::MAX);
             let contents = &*contents.replace(self.0.endmark().escape(), self.0.endmark().string());
             Self::process_message_of(self, &client_id, contents);
         });

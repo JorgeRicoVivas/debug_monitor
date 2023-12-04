@@ -1,15 +1,12 @@
 #[cfg(feature = "use_nanoserde")]
 use nanoserde::{DeJson, SerJson};
-
 #[cfg(feature = "use_serde")]
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
-
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub trait JSONDeSerializable: Sized {
     fn to_json(&self) -> Option<String>;
     fn from_json(json: &str) -> Option<Self>;
 }
-
 
 #[cfg(feature = "use_serde")]
 impl<T> JSONDeSerializable for T where T: Serialize + DeserializeOwned {
@@ -33,7 +30,7 @@ impl<T> JSONDeSerializable for T where T: nanoserde::SerJson + nanoserde::DeJson
     }
 }
 
-pub(crate) mod messages{
+pub(crate) mod messages {
     use super::*;
 
     #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
@@ -59,5 +56,4 @@ pub(crate) mod messages{
         pub(crate) id: usize,
         pub(crate) new_value: String,
     }
-
 }
