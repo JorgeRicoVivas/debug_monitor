@@ -6,6 +6,7 @@ pub struct DebuggableServerBuilder {
     tcp_listener: TcpListener,
     read_dir: Option<String>,
     only_reads_from_dir: bool,
+    after_build: fn(&mut DebuggableServer)
 }
 
 impl DebuggableServerBuilder {
@@ -14,6 +15,7 @@ impl DebuggableServerBuilder {
             tcp_listener,
             read_dir: None,
             only_reads_from_dir: false,
+            after_build: |_|{},
         }
     }
 
@@ -27,12 +29,18 @@ impl DebuggableServerBuilder {
         self
     }
 
+    pub fn after_build(mut self, after_build: fn(&mut DebuggableServer)) -> Self {
+        self.after_build = after_build;
+        self
+    }
+
     pub fn build(self) -> DebuggableServer {
         let mut server = DebuggableServer::new(self.tcp_listener);
         server.set_read_dir(self.read_dir);
         if self.only_reads_from_dir {
             server.set_only_reads_from_dir(true);
         }
+        (self.after_build)(&mut server);
         server
     }
 }
