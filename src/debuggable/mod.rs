@@ -85,9 +85,12 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
         if who_to_notify.is_some() {
             self.server.write().unwrap().notify_new_value(self.id, current_json, who_to_notify.unwrap());
         }
+        println!("[Processing] Processed");
         if new_value.is_none() { return; }
+        println!("[Processing] Setting new value");
         let (_, new_value) = new_value.unwrap();
         unsafe { *self.value.get() = new_value; }
+        println!("[Processing] Processed new value");
     }
 }
 
