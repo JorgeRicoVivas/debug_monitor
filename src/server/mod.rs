@@ -83,11 +83,13 @@ impl DebuggableServer {
         let message = message.unwrap();
         match message {
             ClientMessage::UpdateValue { id, new_value } => {
+                println!("Got update value");
                 let debuggable = server.debuggables.get_mut(id);
                 if debuggable.is_none() { return; }
                 debuggable.unwrap().incoming_jsons.push((*client_id, new_value));
             }
             ClientMessage::Renotify => {
+                println!("Got renotify");
                 if server.get_client(*client_id).is_some() {
                     Self::init_client(server, client_id);
                 } else {
