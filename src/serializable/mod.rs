@@ -52,6 +52,7 @@ pub(crate) mod messages {
 
     #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "use_nanoserde", derive(SerJson, DeJson))]
+    #[derive(Debug)]
     pub enum ClientUnitMessage {
         UpdateValue {
             id: usize,

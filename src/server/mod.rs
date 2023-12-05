@@ -85,6 +85,7 @@ impl DebuggableServer {
             return;
         };
         let client_message = client_unit_message.unwrap();
+        println!("Got client message {client_message:?}");
         match client_message {
             ClientUnitMessage::UpdateValue { id, new_value } => {
                 println!("Got update value");
