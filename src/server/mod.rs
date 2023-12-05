@@ -9,8 +9,7 @@ use std::str::FromStr;
 use fixed_index_vec::fixed_index_vec::FixedIndexVec;
 use simple_tcp::server::SimpleServer;
 
-use crate::serializable::JSONDeSerializable;
-use crate::serializable::messages::{ClientUnitMessage, ServerMessage};
+use crate::serializable::{ClientUnitMessage, JSONDeSerializable, ServerMessage};
 
 pub mod debuggable_server_builder;
 
@@ -80,21 +79,16 @@ impl DebuggableServer {
     fn process_message_of(server: &mut SimpleServer<DebuggableServerData, ()>, client_id: &usize, message: &str) {
         let client_unit_message = ClientUnitMessage::from_json(message);
         if client_unit_message.is_none() {
-            println!("Got wrong message {}", message);
-            println!("Got wrong message as debug {:?}", message);
             return;
         };
         let client_message = client_unit_message.unwrap();
-        println!("Got client message {client_message:?}");
         match client_message {
             ClientUnitMessage::UpdateValue { id, new_value } => {
-                println!("Got update value");
                 let debuggable = server.debuggables.get_mut(id);
                 if debuggable.is_none() { return; }
                 debuggable.unwrap().incoming_jsons.push((*client_id, new_value));
             }
             ClientUnitMessage::Renotify => {
-                println!("Got renotify");
                 if server.get_client(*client_id).is_some() {
                     Self::init_client(server, client_id);
                 } else {

@@ -30,34 +30,29 @@ impl<T> JSONDeSerializable for T where T: nanoserde::SerJson + nanoserde::DeJson
     }
 }
 
-pub(crate) mod messages {
-    use super::*;
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_nanoserde", derive(SerJson, DeJson))]
+pub enum ServerMessage {
+    GiveClientId {
+        client_id: usize
+    },
+    Notify {
+        id: usize,
+        name: String,
+        value_in_json: String,
+    },
+    Remove {
+        id: usize
+    },
+    RemoveAll,
+}
 
-    #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
-    #[cfg_attr(feature = "use_nanoserde", derive(SerJson, DeJson))]
-    pub enum ServerMessage {
-        GiveClientId {
-            client_id: usize
-        },
-        Notify {
-            id: usize,
-            name: String,
-            value_in_json: String,
-        },
-        Remove {
-            id: usize
-        },
-        RemoveAll,
-    }
-
-    #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
-    #[cfg_attr(feature = "use_nanoserde", derive(SerJson, DeJson))]
-    #[derive(Debug)]
-    pub enum ClientUnitMessage {
-        UpdateValue {
-            id: usize,
-            new_value: String,
-        },
-        Renotify,
-    }
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_nanoserde", derive(SerJson, DeJson))]
+pub enum ClientUnitMessage {
+    UpdateValue {
+        id: usize,
+        new_value: String,
+    },
+    Renotify,
 }

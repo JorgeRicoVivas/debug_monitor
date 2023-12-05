@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, RwLock};
 
 use crate::serializable::JSONDeSerializable;
-use crate::serializable::messages::ServerMessage;
+use crate::serializable::ServerMessage;
 use crate::server::{DebuggableServer, Who};
 
 pub struct Debuggable<Value> where Value: JSONDeSerializable {
