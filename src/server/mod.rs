@@ -75,11 +75,11 @@ impl DebuggableServer {
 
     fn process_message_of(server: &mut SimpleServer<DebuggableServerData, ()>, client_id: &usize, message: &str) {
         let message = ClientMessage::from_json(message);
-        if message.is_none() {
-            return;
-        };
+        if message.is_none() { return; };
         let message = message.unwrap();
-        server.debuggables.get_mut(message.id).unwrap().incoming_jsons.push((*client_id, message.new_value));
+        let debuggable = server.debuggables.get_mut(message.id);
+        if debuggable.is_none() { return; }
+        debuggable.unwrap().incoming_jsons.push((*client_id, message.new_value));
     }
 
     pub fn set_read_dir(&mut self, read_dir: Option<String>) {
