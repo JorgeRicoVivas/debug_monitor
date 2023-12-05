@@ -186,7 +186,9 @@ impl DebuggableServer {
             Who::All => (0..self.clients_len()).into_iter().collect(),
             Who::AllBut(except_client) => {
                 let mut clients_to_notify = (0..self.clients_len()).into_iter().collect::<Vec<_>>();
-                clients_to_notify.remove(except_client);
+                if except_client < clients_to_notify.len(){
+                    clients_to_notify.remove(except_client);
+                }
                 clients_to_notify
             }
             Who::WrongClients(wrong_clients) => {
