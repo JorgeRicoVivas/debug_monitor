@@ -14,21 +14,6 @@ pub struct Debuggable<Value> where Value: JSONDeSerializable {
     server: Arc<RwLock<DebuggableServer>>,
 }
 
-impl<Value> Debug for Debuggable<Value> where Value: Debug + JSONDeSerializable {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        let _ = self.deref();
-        unsafe { f.write_str(&*format!("{:?}", *self.value.get())) }
-    }
-}
-
-
-impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
-    fn drop(&mut self) {
-        let message = &*ServerMessage::Remove { id: self.id }.to_json().unwrap();
-        self.server.write().unwrap().send_message_to_all_clients(message);
-    }
-}
-
 impl<Value: JSONDeSerializable> Debuggable<Value> {
     pub fn new<Name: ToString>(name: Name, initial_value: Value) -> Self {
         Self::new_server(crate::default_server::default_server(), name, initial_value)
@@ -98,5 +83,20 @@ impl<Value: JSONDeSerializable> DerefMut for Debuggable<Value> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.process_changes();
         self.value.get_mut()
+    }
+}
+
+impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
+    fn drop(&mut self) {
+        self.server.write().unwrap().remove_debuggable(self.id);
+        let message = &*ServerMessage::Remove { id: self.id }.to_json().unwrap();
+        self.server.write().unwrap().send_message_to_all_clients(message);
+    }
+}
+
+impl<Value> Debug for Debuggable<Value> where Value: Debug + JSONDeSerializable {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        let _ = self.deref();
+        unsafe { f.write_str(&*format!("{:?}", *self.value.get())) }
     }
 }

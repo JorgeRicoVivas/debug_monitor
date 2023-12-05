@@ -205,6 +205,10 @@ impl DebuggableServer {
         self.debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
     }
 
+    pub(crate) fn remove_debuggable(&mut self, debuggable_id:usize) -> Option<DebuggableOnServer> {
+        self.debuggables.remove(debuggable_id)
+    }
+
     pub(crate) fn last_value_of_equals(&self, debuggable_id: usize, current_value: &Option<String>) -> bool {
         self.debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
     }
