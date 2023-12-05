@@ -78,10 +78,14 @@ impl DebuggableServer {
     }
 
     fn process_message_of(server: &mut SimpleServer<DebuggableServerData, ()>, client_id: &usize, message: &str) {
-        let message = ClientMessage::from_json(message);
-        if message.is_none() { return; };
-        let message = message.unwrap();
-        match message {
+        let client_message = ClientMessage::from_json(message);
+        if client_message.is_none() {
+            println!("Got wrong message {}", message);
+            println!("Got wrong message as debug {:?}", message);
+            return;
+        };
+        let client_message = client_message.unwrap();
+        match client_message {
             ClientMessage::UpdateValue { id, new_value } => {
                 println!("Got update value");
                 let debuggable = server.debuggables.get_mut(id);
