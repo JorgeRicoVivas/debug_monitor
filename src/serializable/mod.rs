@@ -52,11 +52,14 @@ pub(crate) mod messages {
 
     #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "use_nanoserde", derive(SerJson, DeJson))]
-    pub enum ClientMessage {
-        UpdateValue {
-            id: usize,
-            new_value: String,
-        },
+    pub enum ClientUnitMessage {
         Renotify,
+    }
+
+    #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "use_nanoserde", derive(SerJson, DeJson))]
+    pub struct ClientUpdateValueMessage {
+        pub(crate) id: usize,
+        pub(crate) new_value: String,
     }
 }

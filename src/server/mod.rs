@@ -10,7 +10,7 @@ use fixed_index_vec::fixed_index_vec::FixedIndexVec;
 use simple_tcp::server::SimpleServer;
 
 use crate::serializable::JSONDeSerializable;
-use crate::serializable::messages::{ClientMessage, ServerMessage};
+use crate::serializable::messages::{ClientUnitMessage, ClientUpdateValueMessage, ServerMessage};
 
 pub mod debuggable_server_builder;
 
@@ -78,32 +78,31 @@ impl DebuggableServer {
     }
 
     fn process_message_of(server: &mut SimpleServer<DebuggableServerData, ()>, client_id: &usize, message: &str) {
-        let client_message = ClientMessage::from_json(message);
-        if client_message.is_none() {
-            println!("Got wrong message {}", message);
-            println!("Got wrong message as debug {:?}", message);
-            return;
-        };
-        let client_message = client_message.unwrap();
-        match client_message {
-            ClientMessage::UpdateValue { id, new_value } => {
-                println!("Got update value");
-                let debuggable = server.debuggables.get_mut(id);
-                if debuggable.is_none() { return; }
-                debuggable.unwrap().incoming_jsons.push((*client_id, new_value));
-            }
-            ClientMessage::Renotify => {
-                println!("Got renotify");
-                if server.get_client(*client_id).is_some() {
-                    Self::init_client(server, client_id);
-                } else {
-                    let clients_to_notify = (0..server.clients_len())
-                        .into_iter()
-                        .filter(|client_id| server.get_client(*client_id).is_some())
-                        .collect::<Vec<_>>();
-                    clients_to_notify.into_iter().for_each(|client| Self::init_client(server, client_id));
+        let client_unit_message = ClientUnitMessage::from_json(message);
+        if client_unit_message.is_some() {
+            match client_unit_message.unwrap() {
+                ClientUnitMessage::Renotify => {
+                    println!("Got renotify");
+                    if server.get_client(*client_id).is_some() {
+                        Self::init_client(server, client_id);
+                    } else {
+                        let clients_to_notify = (0..server.clients_len())
+                            .into_iter()
+                            .filter(|client_id| server.get_client(*client_id).is_some())
+                            .collect::<Vec<_>>();
+                        clients_to_notify.into_iter().for_each(|client| Self::init_client(server, client_id));
+                    }
                 }
             }
+            return;
+        };
+        let update_value_message = ClientUpdateValueMessage::from_json(message);
+        if update_value_message.is_some() {
+            let update_value_message = update_value_message.unwrap();
+            println!("Got update value");
+            let debuggable = server.debuggables.get_mut(update_value_message.id);
+            if debuggable.is_none() { return; }
+            debuggable.unwrap().incoming_jsons.push((*client_id, update_value_message.new_value));
         }
     }
 
