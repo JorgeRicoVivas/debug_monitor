@@ -5,9 +5,12 @@ use std::fs::metadata;
 use std::net::TcpListener;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
+use std::sync::RwLock;
 
 use fixed_index_vec::fixed_index_vec::FixedIndexVec;
-use simple_tcp::server::SimpleServer;
+use simple_tcp::server::Server;
+use simple_tcp::simple_server::{InnerSimpleServer, SimpleServer};
+use simple_tcp::simple_server::builder::SimpleServerBuilder;
 
 use crate::serializable::{ClientUnitMessage, JSONDeSerializable, ServerMessage};
 
@@ -39,44 +42,42 @@ pub struct DebuggableServerData {
 
 impl DebuggableServer {
     pub fn new(tcp_listener: TcpListener) -> DebuggableServer {
-        let mut server = Self {
-            0: SimpleServer::new(tcp_listener, DebuggableServerData {
-                debuggables: FixedIndexVec::new(),
-                only_reads_from_dir: false,
-                read_from_dir: None,
-            },
-                                 |_, _, _| None)
-        };
-        server.on_request_accept(|_, _, _| Some(()));
-        server.on_accept(|server, client_index| {
-            Self::init_client(server, client_index);
-        });
-        server.on_get_message(|server, client_id, message| {
-            Self::process_message_of(server, client_id, message)
-        });
-        server.on_close(|server| {
-            server.send_message_to_all_clients(&*ServerMessage::RemoveAll.to_json().unwrap());
-        });
-        server
+        let server = SimpleServerBuilder::new(tcp_listener,
+                                              DebuggableServerData {
+                                                  debuggables: FixedIndexVec::new(),
+                                                  only_reads_from_dir: false,
+                                                  read_from_dir: None,
+                                              }, |_, _, _| None)
+            .on_accept(|server, client_index| {
+                Self::init_client(server, client_index);
+            })
+            .on_get_message(|server, client_id, message| {
+                Self::process_message_of(server, client_id, message)
+            })
+            .on_close(|server| {
+                let remove_all_debuggables_message = &*ServerMessage::RemoveAll.to_json().unwrap();
+                (0..server.clients().len()).into_iter().for_each(|client_index| {
+                    server.send_message_to_client(client_index, remove_all_debuggables_message);
+                })
+            })
+            .build();
+        Self { 0: server }
     }
 
-    fn init_client(server: &mut SimpleServer<DebuggableServerData, ()>, client_index: &usize) {
-        server.send_message_to_client(*client_index,
-                                      &*ServerMessage::GiveClientId { client_id: *client_index }.to_json().unwrap());
-        for debuggable_index in 0..server.debuggables.len() {
-            let debuggable = server.debuggables.get(debuggable_index);
-            if debuggable.is_none() { continue; }
-            let debuggable = debuggable.unwrap();
+    fn init_client(server: &RwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_index: &usize) {
+        server.read().unwrap().send_message_to_client(*client_index,
+                                                      &*ServerMessage::GiveClientId { client_id: *client_index }.to_json().unwrap());
+        for (debuggable_index, debuggable) in server.read().unwrap().debuggables.iter_index() {
             let notify_value_message = &*ServerMessage::Notify {
                 name: debuggable.name.clone(),
                 id: debuggable_index,
                 value_in_json: debuggable.last_value.clone().unwrap_or_else(|| "{}".to_string()),
             }.to_json().unwrap();
-            server.send_message_to_client(*client_index, notify_value_message);
+            server.read().unwrap().send_message_to_client(*client_index, notify_value_message);
         }
     }
 
-    fn process_message_of(server: &mut SimpleServer<DebuggableServerData, ()>, client_id: &usize, message: &str) {
+    fn process_message_of(server: &RwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_id: &usize, message: &str) {
         let client_unit_message = ClientUnitMessage::from_json(message);
         if client_unit_message.is_none() {
             return;
@@ -84,34 +85,38 @@ impl DebuggableServer {
         let client_message = client_unit_message.unwrap();
         match client_message {
             ClientUnitMessage::UpdateValue { id, new_value } => {
-                let debuggable = server.debuggables.get_mut(id);
-                if debuggable.is_none() { return; }
-                debuggable.unwrap().incoming_jsons.push((*client_id, new_value));
+                match server.write().unwrap().debuggables.get_mut(id) {
+                    None => { return; }
+                    Some(debuggable) => {
+                        debuggable.incoming_jsons.push((*client_id, new_value));
+                    }
+                }
             }
             ClientUnitMessage::Renotify => {
-                if server.get_client(*client_id).is_some() {
+                if server.read().unwrap().clients().contains_index(*client_id) {
                     Self::init_client(server, client_id);
                 } else {
-                    let clients_to_notify = (0..server.clients_len())
+                    server.read().unwrap().clients()
+                        .iter_index()
+                        .map(|(index, _)| index)
+                        .collect::<Vec<_>>()
                         .into_iter()
-                        .filter(|client_id| server.get_client(*client_id).is_some())
-                        .collect::<Vec<_>>();
-                    clients_to_notify.into_iter().for_each(|client| Self::init_client(server, client_id));
+                        .for_each(|client| Self::init_client(server, client_id));
                 }
             }
         }
     }
 
     pub fn set_read_dir(&mut self, read_dir: Option<String>) {
-        self.read_from_dir = read_dir;
+        self.write().unwrap().read_from_dir = read_dir;
     }
 
     pub fn set_only_reads_from_dir(&mut self, only_reads_from_dir: bool) {
-        self.only_reads_from_dir = only_reads_from_dir;
+        self.write().unwrap().only_reads_from_dir = only_reads_from_dir;
     }
 
     pub fn read_all_clients(&mut self) -> usize {
-        if self.only_reads_from_dir {
+        if self.read().unwrap().only_reads_from_dir {
             return self.read_clients_from_read_dir();
         }
         let read_bytes: usize = 0;
@@ -122,8 +127,8 @@ impl DebuggableServer {
 
     pub fn read_clients_from_read_dir(&mut self) -> usize {
         let mut read_bytes = 0_usize;
-        if self.read_from_dir.is_none() { return read_bytes; }
-        let dir_read = fs::read_dir(self.read_from_dir.as_ref().unwrap());
+        if self.read().unwrap().read_from_dir.is_none() { return read_bytes; }
+        let dir_read = fs::read_dir(self.read().unwrap().read_from_dir.as_ref().unwrap());
         if dir_read.is_err() { return read_bytes; }
         let dir_read = dir_read.unwrap();
         let mut transactions = dir_read.into_iter()
@@ -172,21 +177,23 @@ impl DebuggableServer {
         });
         transactions.into_iter().for_each(|(client_id, _, contents)| {
             read_bytes = read_bytes.checked_add(contents.len()).unwrap_or(usize::MAX);
-            let contents = &*contents.replace(self.0.endmark().escape(), self.0.endmark().string());
+            let server = self.0.read().unwrap();
+            let end_mark = server.message_endmark();
+            let contents = &*contents.replace(end_mark.escape(), end_mark.string());
+            drop(server);
             Self::process_message_of(self, &client_id, contents);
         });
         read_bytes
     }
 
     pub(crate) fn notify_new_value(&mut self, changed_id: usize, changed_value: Option<String>, who: Who) {
-        self.debuggables.get_mut(changed_id).unwrap().last_value = changed_value;
-        let value = self.debuggables.get(changed_id).unwrap();
+        self.write().unwrap().debuggables.get_mut(changed_id).unwrap().last_value = changed_value;
         let clients_to_notify: Vec<usize> = match who {
             Who::Client(client_id) => vec![client_id],
             Who::All => (0..self.clients_len()).into_iter().collect(),
             Who::AllBut(except_client) => {
                 let mut clients_to_notify = (0..self.clients_len()).into_iter().collect::<Vec<_>>();
-                if except_client < clients_to_notify.len(){
+                if except_client < clients_to_notify.len() {
                     clients_to_notify.remove(except_client);
                 }
                 clients_to_notify
@@ -197,26 +204,26 @@ impl DebuggableServer {
         };
         let notify_value_message = &*ServerMessage::Notify {
             id: changed_id,
-            name: value.name.clone(),
-            value_in_json: value.last_value.as_ref().unwrap_or(&"{}".to_string()).clone(),
+            name: self.read().unwrap().debuggables.get(changed_id).unwrap().name.clone(),
+            value_in_json: self.read().unwrap().debuggables.get(changed_id).unwrap().last_value.as_ref().unwrap_or(&"{}".to_string()).clone(),
         }.to_json().unwrap();
         self.send_message_to_clients(&*clients_to_notify, notify_value_message);
     }
 
     pub(crate) fn init_debuggable(&mut self, name: String) -> usize {
-        self.debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
+        self.write().unwrap().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
     }
 
-    pub(crate) fn remove_debuggable(&mut self, debuggable_id:usize) -> Option<DebuggableOnServer> {
-        self.debuggables.remove(debuggable_id)
+    pub(crate) fn remove_debuggable(&mut self, debuggable_id: usize) -> Option<DebuggableOnServer> {
+        self.write().unwrap().debuggables.remove(debuggable_id)
     }
 
     pub(crate) fn last_value_of_equals(&self, debuggable_id: usize, current_value: &Option<String>) -> bool {
-        self.debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
+        self.write().unwrap().debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
     }
 
     pub(crate) fn take_incoming_jsons_of(&mut self, debuggable_id: usize) -> Vec<(usize, String)> {
-        mem::take(&mut self.debuggables.get_mut(debuggable_id).unwrap().incoming_jsons)
+        mem::take(&mut self.write().unwrap().debuggables.get_mut(debuggable_id).unwrap().incoming_jsons)
     }
 }
 

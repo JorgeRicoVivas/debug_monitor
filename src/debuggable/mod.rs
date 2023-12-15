@@ -7,6 +7,7 @@ use std::sync::{Arc, RwLock};
 use crate::serializable::JSONDeSerializable;
 use crate::serializable::ServerMessage;
 use crate::server::{DebuggableServer, Who};
+use simple_tcp::server::Server;
 
 pub struct Debuggable<Value> where Value: JSONDeSerializable {
     value: UnsafeCell<Value>,
