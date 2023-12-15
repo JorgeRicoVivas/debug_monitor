@@ -47,7 +47,7 @@ impl DebuggableServer {
                                                   debuggables: FixedIndexVec::new(),
                                                   only_reads_from_dir: false,
                                                   read_from_dir: None,
-                                              }, |_, _, _| None)
+                                              }, |_, _, _| Some(()))
             .on_accept(|server, client_index| {
                 Self::init_client(server, client_index);
             })
