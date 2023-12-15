@@ -5,12 +5,12 @@ use std::fs::metadata;
 use std::net::TcpListener;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
-use std::sync::RwLock;
 
 use fixed_index_vec::fixed_index_vec::FixedIndexVec;
 use simple_tcp::server::Server;
 use simple_tcp::simple_server::{InnerSimpleServer, SimpleServer};
 use simple_tcp::simple_server::builder::SimpleServerBuilder;
+use simple_tcp::unchecked_read_write_lock::UncheckedRwLock;
 
 use crate::serializable::{ClientUnitMessage, JSONDeSerializable, ServerMessage};
 
@@ -64,20 +64,20 @@ impl DebuggableServer {
         Self { 0: server }
     }
 
-    fn init_client(server: &RwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_index: &usize) {
-        server.read().unwrap().send_message_to_client(*client_index,
+    fn init_client(server: &UncheckedRwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_index: &usize) {
+        server.read().send_message_to_client(*client_index,
                                                       &*ServerMessage::GiveClientId { client_id: *client_index }.to_json().unwrap());
-        for (debuggable_index, debuggable) in server.read().unwrap().debuggables.iter_index() {
+        for (debuggable_index, debuggable) in server.read().debuggables.iter_index() {
             let notify_value_message = &*ServerMessage::Notify {
                 name: debuggable.name.clone(),
                 id: debuggable_index,
                 value_in_json: debuggable.last_value.clone().unwrap_or_else(|| "{}".to_string()),
             }.to_json().unwrap();
-            server.read().unwrap().send_message_to_client(*client_index, notify_value_message);
+            server.read().send_message_to_client(*client_index, notify_value_message);
         }
     }
 
-    fn process_message_of(server: &RwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_id: &usize, message: &str) {
+    fn process_message_of(server: &UncheckedRwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_id: &usize, message: &str) {
         let client_unit_message = ClientUnitMessage::from_json(message);
         if client_unit_message.is_none() {
             return;
@@ -85,7 +85,7 @@ impl DebuggableServer {
         let client_message = client_unit_message.unwrap();
         match client_message {
             ClientUnitMessage::UpdateValue { id, new_value } => {
-                match server.write().unwrap().debuggables.get_mut(id) {
+                match server.write().debuggables.get_mut(id) {
                     None => { return; }
                     Some(debuggable) => {
                         debuggable.incoming_jsons.push((*client_id, new_value));
@@ -93,10 +93,10 @@ impl DebuggableServer {
                 }
             }
             ClientUnitMessage::Renotify => {
-                if server.read().unwrap().clients().contains_index(*client_id) {
+                if server.read().clients().contains_index(*client_id) {
                     Self::init_client(server, client_id);
                 } else {
-                    server.read().unwrap().clients()
+                    server.read().clients()
                         .iter_index()
                         .map(|(index, _)| index)
                         .collect::<Vec<_>>()
@@ -108,15 +108,15 @@ impl DebuggableServer {
     }
 
     pub fn set_read_dir(&mut self, read_dir: Option<String>) {
-        self.write().unwrap().read_from_dir = read_dir;
+        self.write().read_from_dir = read_dir;
     }
 
     pub fn set_only_reads_from_dir(&mut self, only_reads_from_dir: bool) {
-        self.write().unwrap().only_reads_from_dir = only_reads_from_dir;
+        self.write().only_reads_from_dir = only_reads_from_dir;
     }
 
     pub fn read_all_clients(&mut self) -> usize {
-        if self.read().unwrap().only_reads_from_dir {
+        if self.read().only_reads_from_dir {
             return self.read_clients_from_read_dir();
         }
         let read_bytes: usize = 0;
@@ -127,8 +127,8 @@ impl DebuggableServer {
 
     pub fn read_clients_from_read_dir(&mut self) -> usize {
         let mut read_bytes = 0_usize;
-        if self.read().unwrap().read_from_dir.is_none() { return read_bytes; }
-        let dir_read = fs::read_dir(self.read().unwrap().read_from_dir.as_ref().unwrap());
+        if self.read().read_from_dir.is_none() { return read_bytes; }
+        let dir_read = fs::read_dir(self.read().read_from_dir.as_ref().unwrap());
         if dir_read.is_err() { return read_bytes; }
         let dir_read = dir_read.unwrap();
         let mut transactions = dir_read.into_iter()
@@ -177,7 +177,7 @@ impl DebuggableServer {
         });
         transactions.into_iter().for_each(|(client_id, _, contents)| {
             read_bytes = read_bytes.checked_add(contents.len()).unwrap_or(usize::MAX);
-            let server = self.0.read().unwrap();
+            let server = self.0.read();
             let end_mark = server.message_endmark();
             let contents = &*contents.replace(end_mark.escape(), end_mark.string());
             drop(server);
@@ -187,7 +187,7 @@ impl DebuggableServer {
     }
 
     pub(crate) fn notify_new_value(&mut self, changed_id: usize, changed_value: Option<String>, who: Who) {
-        self.write().unwrap().debuggables.get_mut(changed_id).unwrap().last_value = changed_value;
+        self.write().debuggables.get_mut(changed_id).unwrap().last_value = changed_value;
         let clients_to_notify: Vec<usize> = match who {
             Who::Client(client_id) => vec![client_id],
             Who::All => (0..self.clients_len()).into_iter().collect(),
@@ -204,26 +204,26 @@ impl DebuggableServer {
         };
         let notify_value_message = &*ServerMessage::Notify {
             id: changed_id,
-            name: self.read().unwrap().debuggables.get(changed_id).unwrap().name.clone(),
-            value_in_json: self.read().unwrap().debuggables.get(changed_id).unwrap().last_value.as_ref().unwrap_or(&"{}".to_string()).clone(),
+            name: self.read().debuggables.get(changed_id).unwrap().name.clone(),
+            value_in_json: self.read().debuggables.get(changed_id).unwrap().last_value.as_ref().unwrap_or(&"{}".to_string()).clone(),
         }.to_json().unwrap();
         self.send_message_to_clients(&*clients_to_notify, notify_value_message);
     }
 
     pub(crate) fn init_debuggable(&mut self, name: String) -> usize {
-        self.write().unwrap().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
+        self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
     }
 
     pub(crate) fn remove_debuggable(&mut self, debuggable_id: usize) -> Option<DebuggableOnServer> {
-        self.write().unwrap().debuggables.remove(debuggable_id)
+        self.write().debuggables.remove(debuggable_id)
     }
 
     pub(crate) fn last_value_of_equals(&self, debuggable_id: usize, current_value: &Option<String>) -> bool {
-        self.write().unwrap().debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
+        self.write().debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
     }
 
     pub(crate) fn take_incoming_jsons_of(&mut self, debuggable_id: usize) -> Vec<(usize, String)> {
-        mem::take(&mut self.write().unwrap().debuggables.get_mut(debuggable_id).unwrap().incoming_jsons)
+        mem::take(&mut self.write().debuggables.get_mut(debuggable_id).unwrap().incoming_jsons)
     }
 }
 
