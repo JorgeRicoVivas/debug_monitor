@@ -115,7 +115,7 @@ impl DebuggableServer {
         self.write().only_reads_from_dir = only_reads_from_dir;
     }
 
-    pub fn read_all_clients(&mut self) -> usize {
+    pub fn read_all_clients(&self) -> usize {
         if self.read().only_reads_from_dir {
             return self.read_clients_from_read_dir();
         }
@@ -125,7 +125,7 @@ impl DebuggableServer {
         read_bytes
     }
 
-    pub fn read_clients_from_read_dir(&mut self) -> usize {
+    pub fn read_clients_from_read_dir(&self) -> usize {
         let mut read_bytes = 0_usize;
         if self.read().read_from_dir.is_none() { return read_bytes; }
         let dir_read = fs::read_dir(self.read().read_from_dir.as_ref().unwrap());
@@ -186,7 +186,7 @@ impl DebuggableServer {
         read_bytes
     }
 
-    pub(crate) fn notify_new_value(&mut self, changed_id: usize, changed_value: Option<String>, who: Who) {
+    pub(crate) fn notify_new_value(&self, changed_id: usize, changed_value: Option<String>, who: Who) {
         self.write().debuggables.get_mut(changed_id).unwrap().last_value = changed_value;
         let clients_to_notify: Vec<usize> = match who {
             Who::Client(client_id) => vec![client_id],
@@ -210,11 +210,11 @@ impl DebuggableServer {
         self.send_message_to_clients(&*clients_to_notify, notify_value_message);
     }
 
-    pub(crate) fn init_debuggable(&mut self, name: String) -> usize {
+    pub(crate) fn init_debuggable(&self, name: String) -> usize {
         self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
     }
 
-    pub(crate) fn remove_debuggable(&mut self, debuggable_id: usize) -> Option<DebuggableOnServer> {
+    pub(crate) fn remove_debuggable(&self, debuggable_id: usize) -> Option<DebuggableOnServer> {
         self.write().debuggables.remove(debuggable_id)
     }
 
@@ -222,7 +222,7 @@ impl DebuggableServer {
         self.write().debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
     }
 
-    pub(crate) fn take_incoming_jsons_of(&mut self, debuggable_id: usize) -> Vec<(usize, String)> {
+    pub(crate) fn take_incoming_jsons_of(&self, debuggable_id: usize) -> Vec<(usize, String)> {
         mem::take(&mut self.write().debuggables.get_mut(debuggable_id).unwrap().incoming_jsons)
     }
 }
