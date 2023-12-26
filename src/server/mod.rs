@@ -64,21 +64,20 @@ impl DebuggableServer {
         Self { 0: server }
     }
 
-    fn init_client(server: &UncheckedRwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_index: &usize) {
-        server.read().send_message_to_client(*client_index,
-                                                      &*ServerMessage::GiveClientId { client_id: *client_index }.to_json().unwrap());
+    fn init_client(server: &UncheckedRwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_index: usize) {
+        server.read().send_message_to_client(client_index, &*ServerMessage::GiveClientId { client_id: client_index }.to_json().unwrap());
         for (debuggable_index, debuggable) in server.read().debuggables.iter_index() {
             let notify_value_message = &*ServerMessage::Notify {
                 name: debuggable.name.clone(),
                 id: debuggable_index,
                 value_in_json: debuggable.last_value.clone().unwrap_or_else(|| "{}".to_string()),
             }.to_json().unwrap();
-            server.read().send_message_to_client(*client_index, notify_value_message);
+            server.read().send_message_to_client(client_index, notify_value_message);
         }
     }
 
-    fn process_message_of(server: &UncheckedRwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_id: &usize, message: &str) {
-        let client_unit_message = ClientUnitMessage::from_json(message);
+    fn process_message_of(server: &UncheckedRwLock<InnerSimpleServer<DebuggableServerData, ()>>, client_id: usize, message: String) {
+        let client_unit_message = ClientUnitMessage::from_json(&message);
         if client_unit_message.is_none() {
             return;
         };
@@ -88,12 +87,12 @@ impl DebuggableServer {
                 match server.write().debuggables.get_mut(id) {
                     None => { return; }
                     Some(debuggable) => {
-                        debuggable.incoming_jsons.push((*client_id, new_value));
+                        debuggable.incoming_jsons.push((client_id, new_value));
                     }
                 }
             }
             ClientUnitMessage::Renotify => {
-                if server.read().clients().contains_index(*client_id) {
+                if server.read().clients().contains_index(client_id) {
                     Self::init_client(server, client_id);
                 } else {
                     server.read().clients()
@@ -120,7 +119,7 @@ impl DebuggableServer {
             return self.read_clients_from_read_dir();
         }
         let read_bytes: usize = 0;
-        read_bytes.checked_add(self.read_clients(true)).unwrap_or(usize::MAX);
+        read_bytes.checked_add(self.read_clients(true).into_iter().map(|(_, read)| read.bytes_read()).sum()).unwrap_or(usize::MAX);
         read_bytes.checked_add(self.read_clients_from_read_dir()).unwrap_or(usize::MAX);
         read_bytes
     }
@@ -179,9 +178,9 @@ impl DebuggableServer {
             read_bytes = read_bytes.checked_add(contents.len()).unwrap_or(usize::MAX);
             let server = self.0.read();
             let end_mark = server.message_endmark();
-            let contents = &*contents.replace(end_mark.escape(), end_mark.string());
+            let contents = contents.replace(end_mark.escape(), end_mark.string());
             drop(server);
-            Self::process_message_of(self, &client_id, contents);
+            Self::process_message_of(self, client_id, contents);
         });
         read_bytes
     }
