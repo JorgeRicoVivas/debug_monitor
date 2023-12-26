@@ -115,7 +115,6 @@ impl DebuggableServer {
     }
 
     pub fn read_all_clients(&self) {
-        println!("Read only from dir: {}", self.read().only_reads_from_dir);
         if self.read().only_reads_from_dir {
             self.read_clients_from_read_dir();
             return;
