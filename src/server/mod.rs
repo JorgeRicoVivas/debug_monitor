@@ -56,7 +56,7 @@ impl DebuggableServer {
             })
             .on_close(|server| {
                 let remove_all_debuggables_message = &*ServerMessage::RemoveAll.to_json().unwrap();
-                (0..server.clients().len()).into_iter().for_each(|client_index| {
+                (0..server.read().clients().len()).into_iter().for_each(|client_index| {
                     server.send_message_to_client(client_index, remove_all_debuggables_message);
                 })
             })
