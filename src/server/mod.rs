@@ -114,14 +114,13 @@ impl DebuggableServer {
         self.write().only_reads_from_dir = only_reads_from_dir;
     }
 
-    pub fn read_all_clients(&self) -> usize {
+    pub fn read_all_clients(&self) {
         if self.read().only_reads_from_dir {
-            return self.read_clients_from_read_dir();
+            self.read_clients_from_read_dir();
+            return;
         }
-        let read_bytes: usize = 0;
-        read_bytes.checked_add(self.read_clients(true).into_iter().map(|(_, read)| read.bytes_read()).sum()).unwrap_or(usize::MAX);
-        read_bytes.checked_add(self.read_clients_from_read_dir()).unwrap_or(usize::MAX);
-        read_bytes
+        self.read_clients_no_context(true);
+        self.read_clients_from_read_dir();
     }
 
     pub fn read_clients_from_read_dir(&self) -> usize {
