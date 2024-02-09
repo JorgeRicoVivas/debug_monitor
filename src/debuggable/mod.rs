@@ -145,6 +145,7 @@ impl<Value: JSONDeSerializable> DerefMut for Debuggable<Value> {
 
 impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
     fn drop(&mut self) {
+        println!("Dropping");
         self.server.write().unwrap().remove_debuggable(self.id);
     }
 }
