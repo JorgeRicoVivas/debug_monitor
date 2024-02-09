@@ -187,7 +187,6 @@ impl DebuggableServer {
     }
 
     pub(crate) fn notify_new_value(&self, changed_id: usize, changed_value: Option<String>, who: Who) {
-        println!("Setted new value for {changed_id} as {changed_value:?}");
         self.write().debuggables.get_mut(changed_id).unwrap().last_value = changed_value;
         let clients_to_notify: Vec<usize> = match who {
             Who::Client(client_id) => vec![client_id],
