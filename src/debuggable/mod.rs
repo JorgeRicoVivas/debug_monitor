@@ -130,22 +130,30 @@ impl<Value: JSONDeSerializable> Deref for Debuggable<Value> {
 
     fn deref(&self) -> &Self::Target {
         unsafe {
+            println!("Derefering {}", self.id);
             self.process_changes();
-            &*self.value.get()
+            println!("Processed {}", self.id);
+            let res = &*self.value.get();
+            println!("Got {}", self.id);
+            res
         }
     }
 }
 
 impl<Value: JSONDeSerializable> DerefMut for Debuggable<Value> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        println!("Derefering {}", self.id);
         self.process_changes();
-        self.value.get_mut()
+        println!("Processed {}", self.id);
+        let res = self.value.get_mut();
+        println!("Got {}", self.id);
+        res
     }
 }
 
 impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
     fn drop(&mut self) {
-        println!("Dropping");
+        println!("Dropping {}", self.id);
         self.server.write().unwrap().remove_debuggable(self.id);
     }
 }
