@@ -15,13 +15,49 @@ pub struct Debuggable<Value> where Value: JSONDeSerializable {
     server: Arc<RwLock<DebuggableServer>>,
 }
 
-impl<Value: JSONDeSerializable> Debuggable<Value> {
-    pub fn new<Name: ToString>(name: Name, initial_value: Value) -> Self {
-        Self::new_server(crate::default_server::default_server(), name, initial_value)
+pub struct DebuggableBuilder<Value: JSONDeSerializable> {
+    initial_value: Value,
+    name: String,
+    server: Option<Arc<RwLock<DebuggableServer>>>,
+    is_keep: bool,
+}
+
+impl<Value: JSONDeSerializable> DebuggableBuilder<Value> {
+    pub fn server(mut self, server: Option<Arc<RwLock<DebuggableServer>>>) -> DebuggableBuilder<Value> {
+        self.server = server;
+        self
     }
 
-    pub fn new_server<Name: ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value) -> Self {
-        let id = server.write().unwrap().init_debuggable(name.to_string());
+    pub fn keep(mut self, is_keep: bool) -> DebuggableBuilder<Value> {
+        self.is_keep = is_keep;
+        self
+    }
+
+    pub fn dont_keep(mut self, is_keep: bool) -> DebuggableBuilder<Value> {
+        self.is_keep = is_keep;
+        self
+    }
+
+    pub fn set_is_keep(mut self, is_keep: bool) -> DebuggableBuilder<Value> {
+        self.is_keep = is_keep;
+        self
+    }
+}
+
+
+impl<Value: JSONDeSerializable> Debuggable<Value> {
+    pub fn new<Name: ToString>(name: Name, initial_value: Value) -> Self {
+        Self::new_server(crate::default_server::default_server(), name, initial_value, false)
+    }
+
+    pub fn new_server<Name: ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value, is_keep: bool) -> Self {
+        let name = name.to_string();
+        let id = server.write().unwrap().init_debuggable(name, is_keep);
+        let initial_value = if is_keep {
+            server.read().unwrap().last_value_of(id).map(|json| Value::from_json(&json)).flatten().unwrap_or(initial_value)
+        } else {
+            initial_value
+        };
         server.write().unwrap().notify_new_value(id, initial_value.to_json(), Who::All);
         Self { value: UnsafeCell::new(initial_value), id, server }
     }
@@ -65,7 +101,6 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
         if new_value.is_none() { return; }
         let (_, new_value) = new_value.unwrap();
         unsafe { *self.value.get() = new_value; }
-
     }
 }
 
@@ -90,8 +125,6 @@ impl<Value: JSONDeSerializable> DerefMut for Debuggable<Value> {
 impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
     fn drop(&mut self) {
         self.server.write().unwrap().remove_debuggable(self.id);
-        let message = &*ServerMessage::Remove { id: self.id }.to_json().unwrap();
-        self.server.write().unwrap().send_message_to_all_clients(message);
     }
 }
 

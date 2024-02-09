@@ -1,6 +1,6 @@
 use std::{fs, mem};
 use std::cmp::Ordering;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::metadata;
 use std::net::TcpListener;
 use std::ops::{Deref, DerefMut};
@@ -36,6 +36,7 @@ impl DerefMut for DebuggableServer {
 #[derive(Debug)]
 pub struct DebuggableServerData {
     debuggables: FixedIndexVec<DebuggableOnServer>,
+    kept_debuggable_values: HashMap<String, usize>,
     only_reads_from_dir: bool,
     read_from_dir: Option<String>,
 }
@@ -45,6 +46,7 @@ impl DebuggableServer {
         let server = SimpleServerBuilder::new(tcp_listener,
                                               DebuggableServerData {
                                                   debuggables: FixedIndexVec::new(),
+                                                  kept_debuggable_values: Default::default(),
                                                   only_reads_from_dir: false,
                                                   read_from_dir: None,
                                               }, |_, _, _| Some(()))
@@ -208,12 +210,29 @@ impl DebuggableServer {
         self.send_message_to_clients(&*clients_to_notify, notify_value_message);
     }
 
-    pub(crate) fn init_debuggable(&self, name: String) -> usize {
+    pub(crate) fn init_debuggable(&self, name: String, is_keep: bool) -> usize {
+        let mut guard = self.read();
+        let kept_index = guard.kept_debuggable_values.get(&name);
+        if is_keep && kept_index.is_some(){
+            return *kept_index.unwrap();
+        }
+        drop(guard);
         self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
     }
 
-    pub(crate) fn remove_debuggable(&self, debuggable_id: usize) -> Option<DebuggableOnServer> {
-        self.write().debuggables.remove(debuggable_id)
+    pub(crate) fn remove_debuggable(&self, debuggable_id: usize) {
+        let is_keep = self.write().debuggables.get(debuggable_id)
+            .map(|debuggable| self.read().kept_debuggable_values.contains_key(&debuggable.name))
+            .unwrap_or(false);
+        if is_keep{return;}
+
+        self.write().debuggables.remove(debuggable_id);
+        let message = &*ServerMessage::Remove { id: debuggable_id }.to_json().unwrap();
+        self.write().send_message_to_clients(&(0..self.read().clients().len()).into_iter().collect::<Vec<_>>(), message);
+    }
+
+    pub(crate) fn last_value_of(&self, debuggable_id: usize) -> Option<String> {
+        self.write().debuggables.get(debuggable_id).unwrap().last_value.clone()
     }
 
     pub(crate) fn last_value_of_equals(&self, debuggable_id: usize, current_value: &Option<String>) -> bool {
