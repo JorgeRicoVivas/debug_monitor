@@ -65,29 +65,21 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
 
     pub fn new_server<Name: ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value, is_keep: bool) -> Self {
         let name = name.to_string();
-        println!("Generating {name}");
         let id = server.write().unwrap().init_debuggable(name, is_keep);
-        println!("ID is {id}");
         let initial_value = if is_keep {
             server.read().unwrap().last_value_of(id).map(|json| Value::from_json(&json)).flatten().unwrap_or(initial_value)
         } else {
             initial_value
         };
-        println!("Made initial value");
         server.write().unwrap().notify_new_value(id, initial_value.to_json(), Who::All);
-        println!("Notified first value");
-        let res = Self { value: UnsafeCell::new(initial_value), id, server };
-        println!("Generated");
-        res
+        Self { value: UnsafeCell::new(initial_value), id, server }
     }
 
     fn process_changes(&self) {
-        println!("Process changes");
         self.server.read().unwrap().accept_incoming_not_blocking();
         self.server.read().unwrap().read_all_clients();
         let current_json = unsafe { (*self.value.get()).to_json() };
         let has_changed = !self.server.read().unwrap().last_value_of_equals(self.id, &current_json);
-        println!("Getting incoming");
         let incoming_jsons = self.server.write().unwrap().take_incoming_jsons_of(self.id);
         let mut wrong_clients: HashSet<usize> = HashSet::new();
         let new_value = incoming_jsons.into_iter().rev().map(|(client, new_json)| {
@@ -119,7 +111,6 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
         if who_to_notify.is_some() {
             self.server.write().unwrap().notify_new_value(self.id, current_json, who_to_notify.unwrap());
         }
-        println!("Changes processed");
         if new_value.is_none() { return; }
         let (_, new_value) = new_value.unwrap();
         unsafe { *self.value.get() = new_value; }
@@ -131,32 +122,22 @@ impl<Value: JSONDeSerializable> Deref for Debuggable<Value> {
 
     fn deref(&self) -> &Self::Target {
         unsafe {
-            println!("Derefering {}", self.id);
             self.process_changes();
-            println!("Processed {}", self.id);
-            let res = &*self.value.get();
-            println!("Got {}", self.id);
-            res
+            &*self.value.get()
         }
     }
 }
 
 impl<Value: JSONDeSerializable> DerefMut for Debuggable<Value> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        println!("Derefering {}", self.id);
         self.process_changes();
-        println!("Processed {}", self.id);
-        let res = self.value.get_mut();
-        println!("Got {}", self.id);
-        res
+        self.value.get_mut()
     }
 }
 
 impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
     fn drop(&mut self) {
-        println!("Dropping {}", self.id);
         self.server.read().unwrap().remove_debuggable(self.id);
-        println!("Dropped {}", self.id);
     }
 }
 
