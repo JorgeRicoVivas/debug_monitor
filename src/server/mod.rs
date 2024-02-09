@@ -221,13 +221,15 @@ impl DebuggableServer {
     }
 
     pub(crate) fn remove_debuggable(&self, debuggable_id: usize) {
+        println!("Checking if it is keep");
         let is_keep = self.read().debuggables.get(debuggable_id)
             .map(|debuggable| self.read().kept_debuggable_values.contains_key(&debuggable.name))
             .unwrap_or(false);
         if is_keep{return;}
-
+        println!("Removing");
         self.write().debuggables.remove(debuggable_id);
         let message = &*ServerMessage::Remove { id: debuggable_id }.to_json().unwrap();
+        println!("Sending messages");
         self.write().send_message_to_clients(&(0..self.read().clients().len()).into_iter().collect::<Vec<_>>(), message);
     }
 
