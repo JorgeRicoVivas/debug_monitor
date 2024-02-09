@@ -110,7 +110,7 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
             None
         };
         if who_to_notify.is_some() {
-            let json = if new_value.is_none() { current_json } else { new_value.as_ref().unwrap().0.to_json() };
+            let json = if new_value.is_none() { current_json } else { new_value.as_ref().unwrap().1.to_json() };
             self.server.write().unwrap().notify_new_value(self.id, json, who_to_notify.unwrap());
         }
         if new_value.is_none() { return; }
