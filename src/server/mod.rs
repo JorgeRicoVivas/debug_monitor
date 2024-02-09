@@ -214,10 +214,14 @@ impl DebuggableServer {
         if is_keep {
             match self.read().kept_debuggable_values.get(&name) {
                 None => {}
-                Some(kept_index) => {return *kept_index}
+                Some(kept_index) => { return *kept_index; }
             }
         }
-        self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
+        let name_copy = if is_keep { Some(name.clone()) } else { None };
+        let res_index = self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()));
+        if !is_keep { return res_index; }
+        self.write().kept_debuggable_values.insert(name_copy.unwrap(), res_index);
+        res_index
     }
 
     pub(crate) fn remove_debuggable(&self, debuggable_id: usize) {
@@ -225,7 +229,7 @@ impl DebuggableServer {
         let is_keep = self.read().debuggables.get(debuggable_id)
             .map(|debuggable| self.read().kept_debuggable_values.contains_key(&debuggable.name))
             .unwrap_or(false);
-        if is_keep{return;}
+        if is_keep { return; }
         println!("Removing");
         self.write().debuggables.remove(debuggable_id);
         let message = &*ServerMessage::Remove { id: debuggable_id }.to_json().unwrap();

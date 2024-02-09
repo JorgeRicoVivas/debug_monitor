@@ -1,6 +1,7 @@
 use std::cell::UnsafeCell;
 use std::collections::HashSet;
 use std::fmt::Debug;
+use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, RwLock};
 
