@@ -230,7 +230,8 @@ impl DebuggableServer {
         self.write().debuggables.remove(debuggable_id);
         let message = &*ServerMessage::Remove { id: debuggable_id }.to_json().unwrap();
         println!("Sending messages");
-        self.write().send_message_to_clients(&(0..self.read().clients().len()).into_iter().collect::<Vec<_>>(), message);
+        let clients_len = self.read().clients().len();
+        self.write().send_message_to_clients(&(0..clients_len).into_iter().collect::<Vec<_>>(), message);
     }
 
     pub(crate) fn last_value_of(&self, debuggable_id: usize) -> Option<String> {
