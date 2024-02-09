@@ -64,14 +64,20 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
 
     pub fn new_server<Name: ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value, is_keep: bool) -> Self {
         let name = name.to_string();
+        println!("Generating {name}");
         let id = server.write().unwrap().init_debuggable(name, is_keep);
+        println!("ID is {id}");
         let initial_value = if is_keep {
             server.read().unwrap().last_value_of(id).map(|json| Value::from_json(&json)).flatten().unwrap_or(initial_value)
         } else {
             initial_value
         };
+        println!("Made initial value");
         server.write().unwrap().notify_new_value(id, initial_value.to_json(), Who::All);
-        Self { value: UnsafeCell::new(initial_value), id, server }
+        println!("Notified first value");
+        let res = Self { value: UnsafeCell::new(initial_value), id, server };
+        println!("Generated");
+        res
     }
 
     fn process_changes(&self) {
