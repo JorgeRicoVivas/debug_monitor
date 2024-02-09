@@ -67,7 +67,9 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
         let name = name.to_string();
         let id = server.write().unwrap().init_debuggable(name, is_keep);
         let initial_value = if is_keep {
-            server.read().unwrap().last_value_of(id).map(|json| Value::from_json(&json)).flatten().unwrap_or(initial_value)
+            let last_value_str = server.read().unwrap().last_value_of(id);
+            println!("Last value of {id} is {last_value_str:?}");
+            last_value_str.map(|json| Value::from_json(&json)).flatten().unwrap_or(initial_value)
         } else {
             initial_value
         };
