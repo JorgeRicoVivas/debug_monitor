@@ -35,13 +35,13 @@ impl<Value: JSONDeSerializable> DebuggableBuilder<Value> {
         self
     }
 
-    pub fn keep(mut self, is_keep: bool) -> DebuggableBuilder<Value> {
-        self.is_keep = is_keep;
+    pub fn keep(mut self) -> DebuggableBuilder<Value> {
+        self.is_keep = true;
         self
     }
 
-    pub fn dont_keep(mut self, is_keep: bool) -> DebuggableBuilder<Value> {
-        self.is_keep = is_keep;
+    pub fn dont_keep(mut self) -> DebuggableBuilder<Value> {
+        self.is_keep = false;
         self
     }
 
