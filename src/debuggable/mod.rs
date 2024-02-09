@@ -8,6 +8,7 @@ use crate::serializable::JSONDeSerializable;
 use crate::serializable::ServerMessage;
 use crate::server::{DebuggableServer, Who};
 use simple_tcp::server::Server;
+use crate::default_server;
 
 pub struct Debuggable<Value> where Value: JSONDeSerializable {
     value: UnsafeCell<Value>,
@@ -42,12 +43,19 @@ impl<Value: JSONDeSerializable> DebuggableBuilder<Value> {
         self.is_keep = is_keep;
         self
     }
+
+    pub fn build(mut self) -> Debuggable<Value> {
+        let server = self.server.unwrap_or_else(|| default_server::default_server());
+        Debuggable::new_server(server, self.name, self.initial_value, self.is_keep)
+    }
+
+
 }
 
 
 impl<Value: JSONDeSerializable> Debuggable<Value> {
     pub fn new<Name: ToString>(name: Name, initial_value: Value) -> Self {
-        Self::new_server(crate::default_server::default_server(), name, initial_value, false)
+        Self::new_server(default_server::default_server(), name, initial_value, false)
     }
 
     pub fn new_server<Name: ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value, is_keep: bool) -> Self {
@@ -129,7 +137,7 @@ impl<Value: JSONDeSerializable> Drop for Debuggable<Value> {
 }
 
 impl<Value> Debug for Debuggable<Value> where Value: Debug + JSONDeSerializable {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let _ = self.deref();
         unsafe { f.write_str(&*format!("{:?}", *self.value.get())) }
     }
