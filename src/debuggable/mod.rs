@@ -26,7 +26,6 @@ pub struct DebuggableBuilder<Value: JSONDeSerializable> {
 
 
 impl<Value: JSONDeSerializable> DebuggableBuilder<Value> {
-
     pub fn new<Name: ToString>(name: Name, initial_value: Value) -> Self {
         Self { initial_value, name: name.to_string(), server: None, is_keep: false }
     }
@@ -111,7 +110,8 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
             None
         };
         if who_to_notify.is_some() {
-            self.server.write().unwrap().notify_new_value(self.id, current_json, who_to_notify.unwrap());
+            let json = if new_value.is_none() { current_json } else { new_value.as_ref().unwrap().0.to_json() };
+            self.server.write().unwrap().notify_new_value(self.id, json, who_to_notify.unwrap());
         }
         if new_value.is_none() { return; }
         let (_, new_value) = new_value.unwrap();
