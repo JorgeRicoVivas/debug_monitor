@@ -187,6 +187,7 @@ impl DebuggableServer {
     }
 
     pub(crate) fn notify_new_value(&self, changed_id: usize, changed_value: Option<String>, who: Who) {
+        println!("Setted new value for {changed_id} as {changed_value:?}");
         self.write().debuggables.get_mut(changed_id).unwrap().last_value = changed_value;
         let clients_to_notify: Vec<usize> = match who {
             Who::Client(client_id) => vec![client_id],
@@ -210,18 +211,18 @@ impl DebuggableServer {
         self.send_message_to_clients(&*clients_to_notify, notify_value_message);
     }
 
-    pub(crate) fn init_debuggable(&self, name: String, is_keep: bool) -> usize {
+    pub(crate) fn init_debuggable(&self, name: String, is_keep: bool) -> (usize, bool) {
         if is_keep {
             match self.read().kept_debuggable_values.get(&name) {
                 None => {}
-                Some(kept_index) => { return *kept_index; }
+                Some(kept_index) => { return (*kept_index, true); }
             }
         }
         let name_copy = if is_keep { Some(name.clone()) } else { None };
-        let res_index = self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()));
-        if !is_keep { return res_index; }
-        self.write().kept_debuggable_values.insert(name_copy.unwrap(), res_index);
-        res_index
+        let res = (self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new())), false);
+        if !is_keep { return res; }
+        self.write().kept_debuggable_values.insert(name_copy.unwrap(), res.0);
+        res
     }
 
     pub(crate) fn remove_debuggable(&self, debuggable_id: usize) {

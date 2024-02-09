@@ -65,7 +65,7 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
 
     pub fn new_server<Name: ToString>(server: Arc<RwLock<DebuggableServer>>, name: Name, initial_value: Value, is_keep: bool) -> Self {
         let name = name.to_string();
-        let id = server.write().unwrap().init_debuggable(name, is_keep);
+        let (id, existed) = server.write().unwrap().init_debuggable(name, is_keep);
         let initial_value = if is_keep {
             let last_value_str = server.read().unwrap().last_value_of(id);
             println!("Last value of {id} is {last_value_str:?}");
