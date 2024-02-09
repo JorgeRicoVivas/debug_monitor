@@ -81,10 +81,12 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
     }
 
     fn process_changes(&self) {
+        println!("Process changes");
         self.server.read().unwrap().accept_incoming_not_blocking();
         self.server.read().unwrap().read_all_clients();
         let current_json = unsafe { (*self.value.get()).to_json() };
         let has_changed = !self.server.read().unwrap().last_value_of_equals(self.id, &current_json);
+        println!("Getting incoming");
         let incoming_jsons = self.server.write().unwrap().take_incoming_jsons_of(self.id);
         let mut wrong_clients: HashSet<usize> = HashSet::new();
         let new_value = incoming_jsons.into_iter().rev().map(|(client, new_json)| {
@@ -116,6 +118,7 @@ impl<Value: JSONDeSerializable> Debuggable<Value> {
         if who_to_notify.is_some() {
             self.server.write().unwrap().notify_new_value(self.id, current_json, who_to_notify.unwrap());
         }
+        println!("Changes processed");
         if new_value.is_none() { return; }
         let (_, new_value) = new_value.unwrap();
         unsafe { *self.value.get() = new_value; }
