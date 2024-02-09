@@ -211,17 +211,17 @@ impl DebuggableServer {
     }
 
     pub(crate) fn init_debuggable(&self, name: String, is_keep: bool) -> usize {
-        let mut guard = self.read();
-        let kept_index = guard.kept_debuggable_values.get(&name);
-        if is_keep && kept_index.is_some(){
-            return *kept_index.unwrap();
+        if is_keep {
+            match self.read().kept_debuggable_values.get(&name) {
+                None => {}
+                Some(kept_index) => {return *kept_index}
+            }
         }
-        drop(guard);
         self.write().debuggables.push(DebuggableOnServer::new(name, None, Vec::new()))
     }
 
     pub(crate) fn remove_debuggable(&self, debuggable_id: usize) {
-        let is_keep = self.write().debuggables.get(debuggable_id)
+        let is_keep = self.read().debuggables.get(debuggable_id)
             .map(|debuggable| self.read().kept_debuggable_values.contains_key(&debuggable.name))
             .unwrap_or(false);
         if is_keep{return;}
@@ -232,11 +232,11 @@ impl DebuggableServer {
     }
 
     pub(crate) fn last_value_of(&self, debuggable_id: usize) -> Option<String> {
-        self.write().debuggables.get(debuggable_id).unwrap().last_value.clone()
+        self.read().debuggables.get(debuggable_id).unwrap().last_value.clone()
     }
 
     pub(crate) fn last_value_of_equals(&self, debuggable_id: usize, current_value: &Option<String>) -> bool {
-        self.write().debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
+        self.read().debuggables.get(debuggable_id).unwrap().last_value.eq(current_value)
     }
 
     pub(crate) fn take_incoming_jsons_of(&self, debuggable_id: usize) -> Vec<(usize, String)> {

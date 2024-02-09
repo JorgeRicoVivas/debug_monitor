@@ -54,8 +54,6 @@ impl<Value: JSONDeSerializable> DebuggableBuilder<Value> {
         let server = self.server.unwrap_or_else(|| default_server::default_server());
         Debuggable::new_server(server, self.name, self.initial_value, self.is_keep)
     }
-
-
 }
 
 
