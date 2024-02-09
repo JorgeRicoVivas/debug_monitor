@@ -24,6 +24,12 @@ pub struct DebuggableBuilder<Value: JSONDeSerializable> {
 }
 
 impl<Value: JSONDeSerializable> DebuggableBuilder<Value> {
+    pub fn new(initial_value: Value, name: String) -> Self {
+        Self { initial_value, name, server: None, is_keep: false }
+    }
+}
+
+impl<Value: JSONDeSerializable> DebuggableBuilder<Value> {
     pub fn server(mut self, server: Option<Arc<RwLock<DebuggableServer>>>) -> DebuggableBuilder<Value> {
         self.server = server;
         self
